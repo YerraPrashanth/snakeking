@@ -1,0 +1,19 @@
+EKS installation steps:
+-------------------------
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C ~/bin
+
+chmod +x ~/bin/eksctl
+
+sudo mv /tmp/eksctl /usr/local/bin (opp)
+
+eksctl version
+
+
+eksctl create cluster --name teja --region us-east-1  --node-type t2.micro --nodes 2 --nodes-min 1 --nodes-max 3
+
+==================
+aws cloudformation delete-stack --stack-name eksctl-teja-cluster
+
+mkdir -p ~/bin
+==================
+git_hub_token: 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

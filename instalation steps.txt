@@ -1,0 +1,434 @@
+sudo amazon-linux-extras install java-openjdk11 -y
+
+sudo yum install java-1.8.0-openjdk -y
+
+----------------------------------------------------
+git
+---------------------------------------
+1    yum install -y git
+---------------------------------------------
+maven
+-------------------------------------------------------------------------------------------------------------
+1    sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
+2    sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
+3    sudo yum install -y apache-maven
+-----------------------------------------------------------------------------------------------------
+jenkins
+------------------------------------------------------------------------------------------
+1     sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+2     sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+3     sudo amazon-linux-extras install epel -y
+4     yum install jenkins -y
+5     service jenkins start & chkconfig jenkins on
+-------------------------------------------------------------------------
+sonarqube
+------------------------------------------------------------------------
+1     sudo wget -O /etc/yum.repos.d/sonar.repo http://downloads.sourceforge.net/project/sonar-pkg/rpm/sonar.repo
+2     sudo yum install sonar -y
+3     service sonar start
+-------------------------------------------------------------------------
+nexus3
+---------------------------------------------------------------------------
+yum install -y java-1.8.0-openjdk-devel.x86_64
+in  cd /opt directory
+1     sudo wget https://download.sonatype.com/nexus/3/latest-unix.tar.gzsudo wget https://download.sonatype.com/nexus/3/latest-unix.tar.gz
+2     tar -xvf latest-unix.tar.gz
+3     mv nexus-3.34.0-01 nexus3
+4     chown -R ec2-user:ec2-user nexus3 sonatype-work
+5     cd nexus3/bin
+6     vi nexus.rc
+7     ln -s /opt/nexus3/bin/nexus /etc/init.d/nexus
+8     cd /etc/init.d/
+9     chkconfig --add nexus
+10    chkconfig nexus on
+11    sudo service nexus start
+12    vi /etc/maven/settings.xml
+       <server>
+       <id>nexusRepo</id>
+       <username>admin</username>
+       <password>admin</password>
+       </server>
+
+---------------------------------------------------------------------
+EKS installation steps:
+-------------------------
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C ~/bin
+
+chmod +x ~/bin/eksctl
+
+sudo mv /tmp/eksctl /usr/local/bin (opp)
+
+eksctl version
+
+
+eksctl create cluster --name teja --region us-east-1  --node-type t2.micro --nodes 2 --nodes-min 1 --nodes-max 3
+
+==================
+aws cloudformation delete-stack --stack-name eksctl-teja-cluster
+
+mkdir -p ~/bin
+==================
+ --------------------------------------------------------------------
+1  yum install docker -y
+2  systemctl enable docker && systemctl start docker
+3  cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+
+name=Kubernetes
+
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+
+enabled=1
+
+gpgcheck=1
+
+repo_gpgcheck=0
+
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+exclude=kube*
+
+EOF
+
+4   cat <<EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+
+5   sysctl --system
+6   setenforce 0
+7   yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+8   systemctl enable kubelet && systemctl start kubelet
+9   kubeadm init
+10  export KUBECONFIG=/etc/kubernetes/admin.conf
+11  ls -al
+12  vi .bash_profile
+13  kubectl apply -f "https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml"    
+_______________________________________K8S_IN_UBUNTU_____________________________
+Master&Nodes
+
+1  sudo su -
+2  apt update
+
+3  sudo apt install docker.io -y
+
+4  sudo  systemctl start docker
+5  sudo systemctl enable docker
+
+6  sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+
+7  curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+
+8  echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+9  sudo apt install -y kubelet kubeadm kubectl
+     
+
+
+only in master
+
+sudo kubeadm init 
+
+mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+
+kubectl apply -f "https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml"
+
+
+
+
+deployment
+
+sudo nano deploy.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+
+kubectl apply -f deploy.yaml
+
+kubectl get po
+
+
+kubectl get deploy
+
+sudo nano np.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080  # Specify the desired NodePort value
+
+
+kubectl apply -f np.yaml
+
+kubectl get svc
+
+To change the replicas
+
+kubectl edit deploy
+------------------------------------------------------------------------------------------------
+rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+___________________________________________________________________________________
+RHEL CLUSTER CREATION STEPS
+___________________________________________________________________________________
+#using terraform atom
+provider "aws" {
+  region = "us-east-1"
+  access_key = "AKIA5BJLBDOEICBILQ6C"
+  secret_key = "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"
+}
+resource "aws_instance" "test" {
+  ami           = "ami-026ebd4cfe2c043b2"
+  instance_type = "t2.micro"
+  key_name   = "key23"
+  count = 2
+
+  tags = {
+    Name = "Redhat"
+  }
+}
+
+---------------------------------------------------
+#open cmd in terraform folder path
+
+terraform init
+terraform validate
+terraform plan
+terraform apply
+
+#ssh connection copy ssh path and paste in cmd for coonecting to ec2 server
+--------------------------------------------------------
+#ansible install commands
+
+#by using pip install ansible
+
+sudo yum install python3-pip
+sudo pip3 install requests
+python3 -m pip -v (install pip)
+
+python3 -m pip install --user ansible
+ansible --version
+
+(or)
+rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm  #creating repository for installing ansible
+sudo yum install ansible
+--------------------------------------------------------
+#apache install commands
+
+sudo yum install httpd
+sudo httpd -v
+sudo systemctl start httpd
+sudo systemctl enable httpd
+---------------------------------------------------------
+
+sestatus (see there desable status)
+
+#for disabled sestatus
+vi /etc/selinux/config  (SELINUX=disabled)
+reboot
+
+#change host name
+
+hostnamectl set-hostname <Name of host name>
+
+#adding host ip's
+
+vi /etc/hosts
+
+#add the ip address of host and host name
+ip address <host name>
+
+#pacemaker install and corosync and pcs and apache
+
+yum install pcs pacemaker corosync fence-agent lvm2=cluster resource-agents psmic policycorcutils-python gfs2-utils
+
+#set password for hacluster
+
+passwd hacluster  (enter password)
+
+systemctl start pcsd.service
+systemctl enable pcsd.service
+
+#2224 pcs port
+_______________________________________________________________________________
+iscsi> yum install -y targetcli lvm2 firewalld
+
+node1 and node2> yum install -y iscsi-initiator-utils lvm2
+
+iscsi> fdisk -l
+
+iscsi> pvcreate /dev/sda
+
+iscsi> vgcreate vg_iscsi /dev/sda
+
+iscsi> lvcreate -l 100%FREE -n lv_iscsi vg_iscsi
+
+node1> vi /etc/iscsi/initiatorname.iscsi
+     >> InitiatorName=iqn.2023-08.com.example:mylinuxserver1
+
+node1> cat /etc/iscsi/initiatorname.iscsi
+
+node2> vi /etc/iscsi/initiatorname.iscsi
+     >> InitiatorName=iqn.2023-08.com.example:mylinuxserver2
+
+node2> cat /etc/iscsi/initiatorname.iscsi
+
+iscsi> targetcli [by this command enter into iscsi cmd ]
+     >> cd /backstores/block
+     >> create iscsi_shared_storage /dev/vg_iscsi/lv_iscsi
+     >> cd /iscsi
+     >> create 
+     >> cd iq.2003..../tgp1/acls
+     >> create [iqn number of node1]
+     >> create [iqn number of node2]
+     >> cd /iscsi/iq.2003..../tgp1/luns
+     >> create /backstores/block/iscsi_shared_storage
+     >> cd /
+     >> ls
+     >> saveconfig
+     >> exit
+iscsi> systemctl restart target
+
+iscsi> systemctl enable target
+
+iscsi> firewall-cmd --permanet --add-port=3260/tcp
+
+iscsi> firewall-cmd --reload
+
+node1 and node2> iscsiadm -m discovery -t st -p[ip of iscsi storage]
+
+node1 and node2> iscsiadm -m node -T [iqn ] -p[ip of iscsi storage] -l
+
+node1 and node2> systemctl restart iscsid
+
+node1 and node2> lsblk
+
+node1> pvcreate /dev/sda
+
+node1> vgcreate vg_apache /dev/sda
+
+node1> lvcreate -n lv_apache -l 100%FREE vg_apache
+
+node1> mkfs.ext4 /dev/vg_apache/lv_apache
+
+node2> pvscan
+
+node2> vgscan           [if its not in active state use this command in node2 # vgchange -ay vg_apache ] 
+
+node2> lvscan
+
+node2> lvdisplay /dev/vg_apache/lv_apache
+
+iscsi and node1 and node2> vi /etc/hosts
+                         >> ip_of_iscsi_storage host_name_of_it
+                         >> ip_of_node1 host_name_of_it
+                         >> ip_of_node2 host_name_of_it
+
+node1 and node2> yum config-manager --set-enabled HighAvailability
+
+node1 and node2> yum install -y pcs fence-agents-all pcp-zeroconf
+
+node1 and node2> firewall-cmd --permanent --add-service=high-availability
+
+node1 and node2> firewall-cmd --add-service=high-availability
+
+node1 and node2> firewall-cmd --reload
+
+node1 and node2> passwd hacluster
+               >> redhat [pasword of cluster]
+
+node1 and node2> systemctl start pcsd
+
+node1 and node2> systemctl enable pcsd [--now]
+
+node1> pcs host auth node1 node2 [host names of nodes]
+     >>username:hacluster
+     >>password:redhat
+
+node1> pcs cluster setup mycluster --start node1 node2 [host names of nodes]
+
+node1> pcs cluster enable --all
+
+node1> pcs cluster status
+
+node1> pcs property set stonith-enabled=false *
+
+node1 and node2> yum install -y httpd
+
+node1 and node2> vim /etc/httpd/conf/httpd.conf
+               >> <Location /server-status>
+                   SetHandler server-status
+                   Require local
+                  </Location>
+
+node1 and node2> /bin/systemctl reload httpd.service> /dev/null 2>/dev/null ||true
+
+node1 and node2> /usr/sbin/httpd -f /etc/httpd/conf/httpd.conf -c"pidFile /var/run/httpd.pid" -k gracefull> /dev/null 2>/dev/null ||true
+
+node1> mount /dev/vg_apache/lv_apache /var/www
+
+node1> mkrir /var/www/html
+
+node1> mkrir /var/www/cgi-bin
+
+node1> mkrir /var/www/error
+
+node1> restorecon -R /var/www
+
+node1> vi /var/www/html/index.html
+     >> <html>
+        <body>
+         Hello, Welcome !, This is RedHat High Availability Cluster
+        <html>
+        <body>
+
+node1> unmount /var/www
+
+node1 and node2> firewall-cmd --permanent --add-service={http,https}
+
+node1 and node2> firewall-cmd --permanent --add-port={2224/tcp,2224/udp}
+
+node1 and node2> firewall-cmd --reload
+
+node1> pcs resource create httpd_fs Filesystem device="/dev/mapper/vg_apache-lv_apache" directory="/var/www" fstype="ext4" --group apache
+
+node1> pcs resource create httpd_vip Ipaddr2 ip=[ip of virtual host] cidr_netmask=24 --group apache
+
+node1> pcs resource create httpd_ser apache configfile="/etc/httpd/conf/httpd.conf" statusurl="http://127.0.0.1/server-status" --group apache
+
+node1> pcs status
+
+
+
+
+
